@@ -1,0 +1,16 @@
+##TITLE= Parameter file, TopSpin 3.7.0
+##JCAMPDX= 5.0
+##DATATYPE= Parameter Values
+##NPOINTS= 2	$$ modification sequence number
+##ORIGIN= Bruker BioSpin GmbH
+##OWNER= tyuwen
+$$ 2025-12-17 17:40:13.724 -0600  tyuwen@d240016-linux.stjude.org
+$$ /home/tyuwen/NMR/par/N15CPMG_NH_nodec_ty_800_cp/outd
+$$ process /opt/topspin3.7.0/prog/mod/edparproc
+##$CURPLOT= <Xerox Mobile Express Driver>
+##$CURPRIN= <$Xerox Mobile Express Driver>
+##$DFORMAT= <normdp>
+##$LAYOUT= <+/1D_X.xwp>
+##$LFORMAT= <normlp>
+##$PFORMAT= <normpl>
+##END=

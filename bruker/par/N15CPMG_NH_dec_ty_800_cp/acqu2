@@ -1,0 +1,24 @@
+##TITLE= Parameter file, TopSpin 3.7.0
+##JCAMPDX= 5.0
+##DATATYPE= Parameter Values
+##NPOINTS= 2	$$ modification sequence number
+##ORIGIN= Bruker BioSpin GmbH
+##OWNER= tyuwen
+$$ 2025-12-17 17:40:13.720 -0600  tyuwen@d240016-linux.stjude.org
+$$ /home/tyuwen/NMR/par/N15CPMG_NH_dec_ty_800_cp/acqu2
+$$ process /opt/topspin3.7.0/prog/mod/edparproc
+##$ACQT0= 0
+##$BF1= 800.2
+##$FnILOOP= 0
+##$FnMODE= 1
+##$NUC1= <off>
+##$NusJSP= 0
+##$NusT2= 1
+##$NusTD= 0
+##$O1= 0
+##$ProjAngle= 0
+##$SFO1= 800.2
+##$SW= 9.0656320388579
+##$SW_h= 1824.53644400265
+##$TD= 31
+##END=

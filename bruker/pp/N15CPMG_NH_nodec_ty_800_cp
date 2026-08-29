@@ -1,0 +1,1315 @@
+/*  N15CPMG_NH_nodec_ty_800_cp
+    Uses [0 0 1 3] phase scheme of Zuiderweg
+
+    This pulse sequence will allow one to perform the following experiment:
+
+    "Constant Relaxation Time CPMG experiment for NH" to identify Rex due to
+    (millisecond) motions. The Nitrogen magnetization is converted from antiphase
+    to inphase by the P-element in the middle of relaxation period
+
+    2D       F1       15N
+             F2(acq)  1H (NH)
+
+    REF: Long et al. JACS, Vol 130, 2008
+
+    Power levels:
+    1H: pl1 - high power 1H pulses
+        pl9 - presat
+        pl11 - power level for mess purge (seldom used)
+
+    15N: pl3 - high power 15N pulses
+         spw32 - reburp 15N 180o pulse for selective excitation of amide 15Ns (if -DN_sel is set)
+         pl33 - power level for 15N CPMG pulses
+
+    Available options:
+      1. Use -DN_comp to perform heating compensation for 15N CPMG pulses
+      2. Use -Dcalc_PL to calculate power level for 15N CPMG pulses (~1 dB weaker than pl3)
+      3. Use -Dcp_flg to perform het-cp back transfer from 15N to 1H
+      4. Use -Dxy_flg to perform CPMG-INEPT transfer between 15N and 1H
+      5. Use -Dip_flg to apply WALTZ16 during t1 period to maintain in-phase 15N magnetization
+      6. Use -Dshp_flg to apply shaped pulses for CPMG pulses and other 15N pulses during INEPT
+      7. Use -DN_calib to calibrate 15N pulse width under load
+      8. Use -Dc_dec to apply AFPs on 13C during the CPMG period (for 13C-labeled samples)
+      9. Use -Dwater to test water preservation
+
+*/
+
+prosol relations=<triple>
+
+#include <Avance.incl>
+#include <Grad.incl>
+#include <Delay.incl>
+
+/***********************/
+/*   Define phases     */
+/***********************/
+#define zero ph=0.0
+#define one ph=90.0
+#define two ph=180.0
+#define three ph=270.0
+
+/***********************/
+/*   Define pulses     */
+/***********************/
+define pulse dly_pg1     /* Messerle purge pulse */
+  "dly_pg1=5m"
+
+define pulse dly_pg2     /* Messerle purge pulse */
+  "dly_pg2=dly_pg1/1.62"
+
+define pulse pwh
+  "pwh=p1"               /* 1H hard pulse at power level pl1 (tpwr) */
+
+define pulse pwc_ad
+
+#if defined(c_flg) || defined(c_dec)
+  "pwc_ad=p8"
+#endif
+
+define pulse pw_sl
+  "pw_sl=p11"
+
+#ifdef xy_flg
+  "plw15=plw1*0.8"
+  "p15=p1*sqrt(1.25)"
+
+  define pulse pwh_cp
+    "pwh_cp=p15"
+#endif
+
+#ifdef ip_flg
+  define pulse pwh_cpd
+    "pwh_cpd=p17"
+#endif
+
+#ifdef cp_flg
+  define pulse pw_dip
+    "pw_dip=p18"
+#endif
+
+define pulse pwn
+  "pwn=p21"              /* PW90 for N pulse at power level pl3 (dhpwr2)  */
+
+#ifdef N_sel
+  define pulse pwn_sl
+    "pwn_sl=p32"
+#endif
+
+#ifdef calc_PL
+  "plw33=plw3*0.8"
+  "p33=p21*sqrt(1.25)"
+#endif
+
+define pulse pwn_cp
+  "pwn_cp=p33"
+
+/************************/
+/*   Define delays      */
+/************************/
+define delay hscuba      /* length of 1/2 scuba delay */
+  "hscuba=25m"
+
+define delay time_T2
+  "time_T2=d20"
+
+define delay time_eq
+  "time_eq=d22"
+
+define delay taua        /* 1 / 4J(XH)                */
+  "taua=d25"             /* use JNH=105 to decrease the tauxh duration */
+
+define delay taub        /* 1 / 4J(XH)                */
+  "taub=d26"             /* use 1/4J(XH=95Hz)         */
+
+#ifdef cp_flg
+  define delay tau_hetcp
+#endif
+
+#ifdef ip_flg
+  define delay t1_max
+
+  define loopcounter ni
+    "ni=td1/2"
+#endif
+
+define delay tauCPMG
+define delay tauCPMG0
+define delay tauCPMG1
+define delay tauCPMG2
+define delay tauCPMG3
+
+"d11=30m"
+"d12=4u"
+"in0=inf1/2"             /* t1/2 increment */
+"TAU2=0.2u"
+
+#ifdef xy_flg
+  "TAU3=larger(pwh_cp,pwn_cp)*2.0/PI"
+  "TAU5=(taua/16.0)-TAU3"
+  "TAU6=(taub/16.0)-TAU3"
+#endif
+
+#ifdef N_sel
+  "DELTA5=taua-2u-p19-d16-pwn_sl*0.475"
+  "DELTA6=taub-2u-p19-d16-pwn_sl*0.475-pwh*2.0"
+  "DELTA9=DELTA5"
+#else /*N_sel*/
+#ifdef shp_flg
+  "DELTA5=taua-2u-p19-d16-p30*cnst30*0.5"
+  "DELTA6=taub-2u-p19-d16-p29*cnst29*0.5-pwh*2.0"
+  "DELTA9=taua-2u-p19-d16-p29*cnst29*0.5"
+#else /*shp_flg*/
+  "DELTA5=taua-2u-p19-d16"
+  "DELTA6=taub-2u-p19-d16-pwn*2.0/PI-pwh*2.0"
+  "DELTA9=DELTA5"
+#endif /*shp_flg*/
+#endif /*N_sel*/
+
+#ifdef ip_flg
+#ifdef N_sel
+  "DELTA7=taub-2u-pwh_cpd-4u-2u-p19-d16-pwn_sl*0.475-pwn*2.0/PI"
+  "DELTA8=taub-4u-2u-p19-d16-pwn_sl*0.475-10u-pwn*2.0/PI"
+#else /*N_sel*/
+#ifdef shp_flg
+  "DELTA7=taub-2u-pwh_cpd-4u-2u-p19-d16-p29*cnst29*0.5-pwn*2.0/PI"
+  "DELTA8=taub-4u-2u-p19-d16-p29*cnst29*0.5-10u-pwn*2.0/PI"
+#else /*shp_flg*/
+  "DELTA7=taub-2u-pwh_cpd-4u-2u-p19-d16-pwn*4.0/PI"
+  "DELTA8=taub-4u-2u-p19-d16-10u-pwn*4.0/PI"
+#endif /*shp_flg*/
+#endif /*N_sel*/
+#else /*ip_flg*/
+  "DELTA8=taub-4u-2u-p19-d16+132u+pwh*2.0-10u-pwn*2.0/PI"
+#endif /*ip_flg*/
+
+#ifdef water
+  "DELTA11=aq"
+  "DELTA12=larger(d61-2u-p16-d16-20u-4u-10u,TAU2)"
+
+  define pulse pwh_tap
+    "pwh_tap=p1*cnst61/90"
+#endif
+
+/*****************************************************************/
+/* f1180: Start t1 at half dwell to get -90/180 phase correction */
+/*        in F1 (15N) dim - set zgoptns -Df1180                  */
+/*****************************************************************/
+#ifdef f1180
+  "d0=(in0/2)"
+#else
+  "d0=(0.2u/2)"
+#endif
+
+/**********************/
+/*    Define lists    */
+/**********************/
+define list<loopcounter> ncyc_cp=<$VCLIST>
+
+define loopcounter ncyc_max  /* max value of ncyc used */
+
+/******************************************************/
+/* Assign cnsts to check validity of parameter ranges */
+/******************************************************/
+#ifdef mess_flg
+  "cnst11=plw11"         /* tpwrmess pl11 - set max at 2.0W */
+#endif
+
+"spoal11=1"
+"spoffs11=0"
+"cnst16=plw16"
+
+#ifdef ip_flg
+  "plw19=plw1*pow(p1/p17,2)"
+#endif
+
+#ifdef cp_flg
+  "plw18=plw1*pow(p1/p18,2)"
+  "plw36=plw3*pow(p21/p18,2)"
+  "tau_hetcp=pw_dip*(2590.0/90.0)*l6"
+#endif
+
+#if defined(c_flg) || defined(c_dec)
+  "spoal13=0.5"
+  "spoffs13=0"
+#endif
+
+#ifdef N_sel
+  "spw32=plw3*pow((p21*2.0/p32)/0.07981016,2)"
+  "cnst32=spw32"         /* power level for 15N selective pulse */
+  "spoal32=0.5"
+#endif
+
+"cnst33=plw33"           /* power level for 15N CPMG pulses */
+
+#ifdef shp_flg
+  "spw28=plw3"
+  "spw29=plw3"
+  "spw30=plw3"
+  "spoal28=0.5"
+  "spoffs28=0"
+  "spoal29=0.5"
+  "spoffs29=0"
+  "spoal30=0.5"
+  "spoffs30=0"
+
+  define pulse shp_cp
+    "shp_cp=p36*(10000*pwn_cp/0.25s)"
+  "spoal36=0.5"
+  "spoffs36=0"
+  "spw36=plw33"
+
+  "l8=trunc((time_T2*0.5)/(shp_cp*cnst6+pwn_cp*4.0/PI+4u+0.2u))"
+#else
+  "l8=trunc((time_T2*0.5)/(pwn_cp*1.5+pwn_cp*4.0/PI+4u+0.2u))"
+#endif
+
+/**********************/
+/* Define CPMG pulses */
+/**********************/
+#ifdef shp_flg
+#define cpmg_11 (shp_cp:sp36 ph11):f3
+#define cpmg_12 (shp_cp:sp36 ph12):f3
+#define cpmg_13 (shp_cp:sp36 ph13):f3
+#define cpmg_14 (shp_cp:sp36 ph14):f3
+#else
+#define cpmg_11 (pwn_cp*2.0 ph11):f3
+#define cpmg_12 (pwn_cp*2.0 ph12):f3
+#define cpmg_13 (pwn_cp*2.0 ph13):f3
+#define cpmg_14 (pwn_cp*2.0 ph14):f3
+#endif
+#define CPMG_15N_1 if "nsdone%2 == 0" {\n cpmg_11 \n}\n else {\n cpmg_12 \n}
+#define CPMG_15N_2 if "nsdone%2 == 0" {\n cpmg_13 \n}\n else {\n cpmg_14 \n}
+
+#ifdef c_dec
+#define AFP_13C (pwc_ad:sp13 ph26):f2
+#else
+#define AFP_13C
+#endif
+
+#ifdef xy_flg
+#ifdef shp_flg
+#define HN_180 (center (pwh_cp ph15 pwh_cp*2.6667 ph16 pwh_cp ph15):f1 (pwn_cp ph15 pwn_cp*2.6667 ph16 pwn_cp ph15):f3)
+#else
+#define HN_180 (center (pwh_cp*2.0 ph16):f1 (pwn_cp*2.0 ph16):f3)
+#endif
+#endif
+
+/************************/
+/* Initialize variables */
+/************************/
+"l2=0"
+"l11=0"
+"l12=0"
+"l21=0"
+"l22=0"
+"l23=0"
+"l24=0"
+"l25=0"
+"l26=0"
+
+#ifdef c_dec
+  "l27=(trunc((trunc((time_T2 + 4u)/(d9*4.0)))*4.0 + 2 + 0.3))"
+#else
+  "l27=0"
+#endif
+
+aqseq 321
+
+"acqt0=0"
+baseopt_echo
+
+/*******************************/
+/* BEGIN ACTUAL PULSE SEQUENCE */
+/*******************************/
+1 ze
+  "ncyc_max=ncyc_cp.max"
+  2u
+
+#ifdef shp_flg
+  "DELTA2=(shp_cp+4u)*(ncyc_max+4)*2.0"
+#else
+  "DELTA2=(pwn_cp*2.0+4u)*(ncyc_max+4)*2.0"
+#endif
+  2u
+
+/**************************************/
+/* Check validity of parameter range  */
+/**************************************/
+#ifdef mess_flg
+  if "cnst11 > 2.0" {
+    2u
+    print "error: tpwrmess pl11 too large; < 2W !!!"
+    goto HaltAcqu
+  }
+#endif
+
+#ifdef ip_flg
+  if "p17 < 30u" {
+    2u
+    print "error: p17 for 1H decoupling during t1 too short; > 30us !!!"
+    goto HaltAcqu
+  }
+#endif
+
+#ifdef cp_flg
+  if "l6%2 != 0" {
+    2u
+    print "error: l6 should be set as an even number !!!"
+    goto HaltAcqu
+  }
+
+  if "p18 < 30u" {
+    2u
+    print "error: p18 for het-cp transfer too short; > 30us !!!"
+    goto HaltAcqu
+  }
+
+  if "abs(tau_hetcp - taub*4.0) > taub*0.5" {
+    2u
+    print "warning: het-cp transfer time too long or too short, choose a different p18 !!!"
+  }
+#endif
+
+#ifdef N_sel
+  if "cnst32 > 200" {
+    2u
+    print "error: dpwr2_sl sp32 too large; < 200W !!!"
+    goto HaltAcqu
+  }
+#endif
+
+  if "cnst33 > 300" {
+    2u
+    print "error: power level for 15N CPMG pulses too large; < 300W !!!"
+    goto HaltAcqu
+  }
+
+  if "time_T2 > 80m" {
+    2u
+    print "error:time_T2 too long; < 80ms !!!"
+    goto HaltAcqu
+  }
+
+  if "ncyc_max > 200 || ncyc_max > l8" {
+    2u
+    print "error: ncyc_max too large !!!"
+    goto HaltAcqu
+  }
+
+#ifdef shp_flg
+  if "cnst6 < 0 || cnst6 > 1" {
+    2u
+    print "error: cnst6 should be in the range of 0 and 1 !!!"
+    goto HaltAcqu
+  }
+#endif
+
+#ifdef c_dec
+#ifdef shp_flg
+  if "d9 < pwc_ad + pwn_cp*2.0/PI + shp_cp*0.5*cnst6 + 2u" {
+#else
+  if "d9 < pwc_ad + pwn_cp*2.0/PI + pwn_cp*0.75 + 2u" {
+#endif
+    2u
+    print "error: d9 is too short, should be longer than pwc_ad !!!"
+    goto HaltAcqu
+  }
+#endif
+
+  if "d1 < 1.0s" {
+    2u
+    print "error: d1 too short; > 1.0s !!!"
+    goto HaltAcqu
+  }
+
+  if "aq > 100m && cnst16 > 0" {
+    2u
+    print "error: aq too long; < 100ms !!!"
+    goto HaltAcqu
+  }
+
+#if defined(cp_flg) && defined(xy_flg)
+    print "error: -Dcp_flg and -Dxy_flg should not be used together !!!"
+    goto HaltAcqu
+#endif
+
+2 d11 do:f3
+/************************/
+/* Update list pointers */
+/************************/
+  2u
+  "ncyc_cp.idx=l2"
+  2u rpp11 rpp12 rpp13 rpp14 rpp21 rpp22
+
+/******************************************/
+/* Continue with checks that are run time */
+/******************************************/
+  if "nsdone % 2 == 0" {
+    "l11 = trunc(ncyc_cp*0.5 + 0.3)"
+  }
+  else {
+    "l11 = trunc((ncyc_cp + 1)*0.5 + 0.3)"
+  }
+  2u
+  "l21 = trunc(ncyc_cp - l11 + 0.3)"
+  2u
+  "l12 = trunc(l11*2.0 - 1 + 0.3)"
+  "l22 = trunc(l21*2.0 - 1 + 0.3)"
+  2u 
+  "l25 = trunc(ncyc_max - larger(l11, 1) - larger(l21, 1) + 4 + 0.3)"
+  2u
+
+  if "ncyc_cp > 0" {
+    if "ncyc_cp > 1" {
+      "tauCPMG0 = (time_T2*0.25)/ncyc_cp"
+    }
+    else {
+#ifdef shp_flg
+      "tauCPMG0 = (time_T2-pwn_cp*8.0/PI-shp_cp*2.0*cnst6-8u)*0.25"
+#else
+      "tauCPMG0 = (time_T2-pwn_cp*8.0/PI-pwn_cp*3.0-8u)*0.25"
+#endif
+    }
+    2u
+#ifdef shp_flg
+    "tauCPMG = tauCPMG0 - shp_cp*0.5*cnst6"
+#else
+    "tauCPMG = tauCPMG0 - pwn_cp*0.75"
+#endif
+    2u
+    "tauCPMG1 = tauCPMG - pwn_cp*2.0/PI"
+  }
+  else {
+    "tauCPMG = 2u"
+    "tauCPMG0 = 2u"
+    "tauCPMG1 = 2u"
+  }
+  2u
+
+/* Calculate delays related to 15N heat compensation */
+  if "l25 > 0 && time_T2 > 0" {
+#ifdef shp_flg
+    "tauCPMG2 = (DELTA2*0.25)/l25 - shp_cp*0.5"
+#else
+    "tauCPMG2 = (DELTA2*0.25)/l25 - pwn_cp"
+#endif
+  }
+  else {
+    "tauCPMG2 = 2u"
+  }
+
+/* Calculate number of pulses for 13C heat compensation */
+#ifdef c_dec
+  "l23 = (trunc((tauCPMG0 + 1u)/d9))"
+#else
+  "l23 = 0"
+#endif
+  2u
+  "l24 = (trunc(l23*2.0 + 0.3))"
+  "l26 = (trunc(l27*0.5 - ncyc_cp*l23*2.0 + 0.3))"
+  2u
+
+  if "l26 > 0" {
+    "tauCPMG3 = (time_T2*0.25)/l26 - pwc_ad*0.5"
+  }
+  else {
+    "tauCPMG3 = 2u"
+  }
+
+/* Calculate delays related to longitudinal relaxation and heating compensation */
+#ifdef shp_flg
+  "DELTA3 = larger(((ncyc_max + 1)*0.5 - larger(l11, 1)) * shp_cp * 2.0 * (1.0 - cnst6) + 4u, TAU2)"
+  "DELTA4 = larger(((ncyc_max + 1)*0.5 - larger(l21, 1)) * shp_cp * 2.0 * (1.0 - cnst6) + 4u, TAU2)"
+#else
+  "DELTA3 = larger(((ncyc_max + 1)*0.5 - larger(l11, 1)) * pwn_cp + 4u, TAU2)"
+  "DELTA4 = larger(((ncyc_max + 1)*0.5 - larger(l21, 1)) * pwn_cp + 4u, TAU2)"
+#endif
+  2u
+
+/***********************************************/
+/* Presaturation Period                        */
+/* Option for Messerle purge zgoptn -Dmess_flg */
+/***********************************************/
+  10u fq=0(sfo hz):f1
+
+#ifdef mess_flg
+  4u pl11:f1
+  (dly_pg1 ph26):f1
+  2u
+  (dly_pg2 ph27):f1
+#endif
+
+/****************************************************************/
+/* Insert possibility for N heat comp using the Varian approach */
+/****************************************************************/
+#ifdef N_comp
+  4u pl33:f3
+
+  if "l25 > 0" {
+11  tauCPMG2
+    CPMG_15N_1
+    tauCPMG2 ipp11 ipp12
+    lo to 11 times l25
+  }
+  else {
+    DELTA2*0.5
+  }
+
+  2u rpp11 rpp12
+#endif /*N_comp*/
+
+#ifdef c_dec
+  if "l26 > 0" {
+13  tauCPMG3
+    AFP_13C
+    tauCPMG3
+    lo to 13 times l26
+  }
+  else {
+    time_T2*0.5
+  }
+#endif /*c_dec*/
+
+#if defined(N_comp) || defined(c_dec)
+  50u UNBLKGRAD
+
+  2u
+  p16:gp1*2.0
+  d16
+
+  4u BLKGRAD
+#endif
+
+/************************/
+/* Presaturation Period */
+/************************/
+#ifdef c_dec
+  "DELTA1 = d1 - time_T2"
+#else
+  "DELTA1 = d1"
+#endif /*c_dec*/
+  2u
+
+#ifdef N_comp
+  "DELTA = DELTA1 - DELTA2"
+#else
+  "DELTA = DELTA1"
+#endif /*N_comp*/
+  2u
+
+#ifdef fsat
+  4u pl9:f1
+  DELTA cw:f1 ph26
+  2u do:f1
+  4u pl1:f1
+#ifdef fscuba
+  hscuba
+  (pwh ph26 pwh*2.0 ph27 pwh ph26):f1
+  hscuba
+#endif /*fscuba*/
+#else
+  4u pl1:f1
+  DELTA
+#endif /*fsat*/
+  50u UNBLKGRAD
+
+/****************************************************************/
+/* Insert possibility for N heat comp using the Varian approach */
+/****************************************************************/
+#ifdef c_dec
+  if "l26 > 0" {
+14  tauCPMG3
+    AFP_13C
+    tauCPMG3
+    lo to 14 times l26
+  }
+  else {
+    time_T2*0.5
+  }
+#endif /*c_dec*/
+
+#ifdef N_comp
+  4u pl33:f3
+
+  if "l25 > 0" {
+12  tauCPMG2
+    CPMG_15N_1
+    tauCPMG2 ipp11 ipp12
+    lo to 12 times l25
+  }
+  else {
+    DELTA2*0.5
+  }
+
+  2u rpp11 rpp12
+#endif /*N_comp*/
+
+#if defined(N_comp) || defined(c_dec)
+  2u
+  p16:gp1*2.0
+  d16
+#endif
+
+/**********************************************/
+/* Eliminate equilibrium magnetization on 15N */
+/**********************************************/
+  4u pl3:f3
+  (pwn ph26):f3
+
+  2u
+  p16:gp1
+  d16
+
+/**************************/
+/* This is the real start */
+/**************************/
+  /* shaped pulse */
+  4u
+#ifdef xy_flg
+  (pw_sl:sp11 ph27):f1
+#else
+  (pw_sl:sp11 ph29):f1
+#endif
+  4u pl1:f1
+  /* shaped pulse */
+
+  (pwh ph26):f1
+
+#ifdef xy_flg
+  "TAU7 = TAU5 - pwh*2.0/PI"
+  "TAU8 = TAU5*2.0 - 2u"
+
+  TAU7 pl15:f1 pl33:f3 rpp15 rpp16
+  HN_180
+
+4 2u ipp15 ipp16
+  TAU8
+  HN_180
+  lo to 4 times 15
+
+  TAU7 pl1:f1 pl3:f3
+
+  (pwh ph29):f1
+#else /*xy_flg*/
+  2u
+  p19:gp2
+  d16
+
+  DELTA5
+
+#ifdef N_sel
+  (center (pwh*2.0 ph26):f1 (pwn_sl:sp32 ph26):f3)
+#else /*N_sel*/
+#ifdef shp_flg
+  (center (pwh*2.0 ph26):f1 (p30:sp30 ph26):f3)
+#else /*shp_flg*/
+  (center (pwh*2.0 ph26):f1 (pwn*2.0 ph26):f3)
+#endif /*shp_flg*/
+#endif /*N_sel*/
+
+  DELTA5 pl3:f3
+
+  2u
+  p19:gp2
+  d16
+
+  (pwh ph27):f1
+#endif /*xy_flg*/
+
+  2u
+  p16:gp5
+  d16
+
+  "DELTA = larger(time_eq-2u-p16-d16, TAU2)"
+  DELTA
+
+/****************************************/
+/* First half of CPMG relaxation period */
+/****************************************/
+  DELTA3
+  4u pl33:f3
+  (pwn_cp ph2):f3
+
+  if "l11 > 0" {
+    if "l23 > 0" {
+      "DELTA = ((tauCPMG1-2u)/l23 - pwc_ad)*0.5"
+21    DELTA
+      AFP_13C
+      DELTA
+      lo to 21 times l23
+    }
+    else {
+      "DELTA = tauCPMG1-2u"
+      DELTA
+    }
+
+    2u
+    CPMG_15N_1
+
+22  2u ipp11 ipp12 ipp13 ipp14
+
+    if "l24 > 0" {
+      "DELTA = ((tauCPMG*2.0-2u-2u)/l24 - pwc_ad)*0.5"
+23    DELTA
+      AFP_13C
+      DELTA
+      lo to 23 times l24
+    }
+    else {
+      "DELTA = tauCPMG*2.0-2u-2u"
+      DELTA
+    }
+
+    2u
+    CPMG_15N_1
+    lo to 22 times l12
+
+    2u pl33:f3
+
+    if "l23 > 0" {
+      "DELTA = ((tauCPMG1-2u)/l23 - pwc_ad)*0.5"
+24    DELTA
+      AFP_13C
+      DELTA
+      lo to 24 times l23
+    }
+    else {
+      "DELTA = tauCPMG1-2u"
+      DELTA
+    }
+  }
+  else {
+    2u
+    CPMG_15N_1
+
+    "DELTA = pwn_cp*4.0/PI+4u"
+    DELTA ipp11 ipp12 ipp13 ipp14
+
+    CPMG_15N_1
+    2u pl33:f3
+  }
+
+  (pwn_cp ph5):f3
+
+  /* Central P-element */
+#ifdef xy_flg
+  "TAU7 = TAU6 - pwn*2.0/PI"
+  "TAU8 = TAU6*2.0 - 2u"
+
+  TAU7 pl15:f1 rpp15 rpp16
+  HN_180
+
+5 2u ipp15 ipp16
+  TAU8
+  HN_180
+  lo to 5 times 15
+
+  TAU7 pl1:f1 ipp11 ipp12 ipp13 ipp14
+#else /*xy_flg*/
+  4u pl3:f3
+  (pwh ph27 pwh*2.0 ph26 pwh ph27):f1
+
+  2u
+  p19:gp4
+  d16
+
+  DELTA6
+
+#ifdef N_sel
+  (center (pwh ph27 pwh*2.0 ph26 pwh ph27):f1 (pwn_sl:sp32 ph26):f3)
+#else /*N_sel*/
+#ifdef shp_flg
+  (center (pwh ph27 pwh*2.0 ph26 pwh ph27):f1 (p29:sp29 ph26):f3)
+#else /*shp_flg*/
+  (center (pwh ph27 pwh*2.0 ph26 pwh ph27):f1 (pwn*2.0 ph26):f3)
+#endif /*shp_flg*/
+#endif /*N_sel*/
+
+  "DELTA=DELTA6 + 4u + pwh*4.0"
+  DELTA pl33:f3 ipp11 ipp12 ipp13 ipp14
+
+  2u
+  p19:gp4
+  d16
+#endif /*xy_flg*/
+
+/*****************************************/
+/* Second half of CPMG relaxation period */
+/*****************************************/
+  (pwn_cp ph6):f3
+
+  if "l21 > 0" {
+    if "l23 > 0" {
+      "DELTA = ((tauCPMG1-2u)/l23 - pwc_ad)*0.5"
+25    DELTA
+      AFP_13C
+      DELTA
+      lo to 25 times l23
+    }
+    else {
+      "DELTA = tauCPMG1-2u"
+      DELTA
+    }
+
+    2u
+    CPMG_15N_2
+
+26  2u ipp11 ipp12 ipp13 ipp14
+
+    if "l24 > 0" {
+      "DELTA = ((tauCPMG*2.0-2u-2u)/l24 - pwc_ad)*0.5"
+27    DELTA
+      AFP_13C
+      DELTA
+      lo to 27 times l24
+    }
+    else {
+      "DELTA = tauCPMG*2.0-2u-2u"
+      DELTA
+    }
+
+    2u
+    CPMG_15N_2
+    lo to 26 times l22
+
+    2u pl33:f3
+
+    if "l23 > 0" {
+      "DELTA = ((tauCPMG1-2u)/l23 - pwc_ad)*0.5"
+28    DELTA
+      AFP_13C
+      DELTA
+      lo to 28 times l23
+    }
+    else {
+      "DELTA = tauCPMG1-2u"
+      DELTA
+    }
+  }
+  else {
+    2u
+    CPMG_15N_2
+
+    "DELTA = pwn_cp*4.0/PI+4u"
+    DELTA ipp11 ipp12 ipp13 ipp14
+
+    CPMG_15N_2
+    2u pl33:f3
+  }
+
+  (pwn_cp ph26):f3
+  DELTA4
+  (pwh*2.0 ph26):f1
+
+  2u
+  p16:gp6
+  d16
+
+  "DELTA = larger(time_eq-2u-p16-d16, TAU2)"
+  DELTA
+
+/**********************************/
+/* Calibrate 15N pulse under load */
+/**********************************/
+#ifdef N_calib
+  4u pl35:f3
+  (p35 ph26):f3
+
+  2u
+  p16:gp1*3.0
+  d16
+#endif /*N_calib*/
+
+/***************************/
+/*   15N labeling period   */
+/***************************/
+  4u pl3:f3
+
+#ifdef ip_flg
+  "t1_max = (ni-1)*in0*2.0 + in0 + 2u"
+  "DELTA = larger(t1_max-d0*2.0, TAU2)"
+
+  4u pl19:f1
+  (pwh_cpd ph27):f1
+  (2u cpds5 ph26):f1
+
+  DELTA
+
+  (pwn ph3):f3
+
+#ifdef c_flg
+  if "d0 - pwc_ad*0.5 > 0.2u" {
+    "DELTA = d0 - pwc_ad*0.5"
+    DELTA
+    (pwc_ad:sp13 ph26):f2
+    DELTA
+  }
+  else {
+    d0
+    d0
+  }
+#else
+  d0
+  d0
+#endif /*c_flg*/
+
+  2u do:f1
+  (pwh_cpd ph29):f1
+  4u pl1:f1
+
+  2u
+  p19:gp7*-1.0
+  d16
+
+  DELTA7
+
+#ifdef N_sel
+  (center (pwh ph27 pwh*2.0 ph26 pwh ph27):f1 (pwn_sl:sp32 ph26):f3)
+#else /*N_sel*/
+#ifdef shp_flg
+  (center (pwh ph27 pwh*2.0 ph26 pwh ph27):f1 (p29:sp29 ph26):f3)
+#else /*shp_flg*/
+  (center (pwh ph27 pwh*2.0 ph26 pwh ph27):f1 (pwn*2.0 ph26):f3)
+#endif /*shp_flg*/
+#endif /*N_sel*/
+#else /*ip_flg*/
+  (pwn ph3):f3
+
+  32u gron0*1.0
+
+#ifdef c_flg
+  if "d0 - pwc_ad*0.5 > 0.2u" {
+    "DELTA = d0 - pwc_ad*0.5"
+    DELTA
+    100u groff
+
+    (pwc_ad:sp13 ph26):f2
+
+    "DELTA = taub - 132u - 2u - p19 - d16 - pwc_ad*0.5 - pwh*2.0 - pwn*2.0/PI"
+  }
+  else {
+    d0
+    100u groff
+
+    "DELTA = taub - 132u - 2u - p19 - d16 - pwh*2.0 - pwn*2.0/PI"
+  }
+#else
+  d0
+  100u groff
+
+  "DELTA = taub - 132u - 2u - p19 - d16 - pwh*2.0 - pwn*2.0/PI"
+#endif
+  DELTA
+
+  2u
+  p19:gp7*-1.0
+  d16
+
+  (pwh ph27 pwh*2.0 ph26 pwh ph27):f1
+
+  32u gron0*-1.0
+  d0
+  100u groff
+
+#ifdef N_sel
+#if defined(cp_flg) || defined(xy_flg)
+  (pwn_sl:sp32 ph26):f3
+#else
+  (pwn*2.0 ph26):f3
+#endif
+#else /*N_sel*/
+#ifdef shp_flg
+  (p28:sp28 ph26):f3
+#else /*shp_flg*/
+  (pwn*2.0 ph26):f3
+#endif /*shp_flg*/
+#endif /*N_sel*/
+#endif /*ip_flg*/
+
+  4u pl3:f3
+
+  2u
+  p19:gp7
+  d16
+
+  DELTA8
+
+/****************************************/
+/*   Planar mixing N->H back transfer   */
+/****************************************/
+#ifdef cp_flg
+  10u fq=cnst1(bf ppm):f1
+  (ralign (pwh ph28):f1 (pwn ph4):f3)
+
+  "DELTA=min(d12, d13)"
+  DELTA pl18:f1 pl36:f3
+
+6 (center (pw_dip*3.556 ph21):f1 (pw_dip*3.556 ph21):f3)
+  (center (pw_dip*4.556 ph22):f1 (pw_dip*4.556 ph22):f3)
+  (center (pw_dip*3.222 ph21):f1 (pw_dip*3.222 ph21):f3)
+  (center (pw_dip*3.167 ph22):f1 (pw_dip*3.167 ph22):f3)
+  (center (pw_dip*0.333 ph21):f1 (pw_dip*0.333 ph21):f3)
+  (center (pw_dip*2.722 ph22):f1 (pw_dip*2.722 ph22):f3)
+  (center (pw_dip*4.167 ph21):f1 (pw_dip*4.167 ph21):f3)
+  (center (pw_dip*2.944 ph22):f1 (pw_dip*2.944 ph22 ipp22):f3)
+  (center (pw_dip*4.111 ph21):f1 (pw_dip*4.111 ph21 ipp21):f3)
+  lo to 6 times l6
+
+  DELTA pl1:f1
+  (pwh ph28):f1
+#else /*cp_flg*/
+  10u
+  (center (pwh ph26):f1 (pwn ph4):f3)
+
+#ifdef xy_flg
+  "TAU7 = TAU5 - pwh*2.0/PI - (pwn-pwh)*0.5"
+  "TAU8 = TAU5*2.0 - 2u"
+
+  TAU7 pl15:f1 pl33:f3 rpp15 rpp16
+  HN_180
+
+7 2u ipp15 ipp16
+  TAU8
+  HN_180
+  lo to 7 times 15
+
+  TAU7 pl1:f1 pl3:f3
+#else /*xy_flg*/
+  2u
+  p19:gp8
+  d16
+
+  DELTA9
+
+#ifdef N_sel
+  (center (pwh*2.0 ph26):f1 (pwn_sl:sp32 ph26):f3)
+#else /*N_sel*/
+#ifdef shp_flg
+  (center (pwh*2.0 ph26):f1 (p29:sp29 ph26):f3)
+#else /*shp_flg*/
+  (center (pwh*2.0 ph26):f1 (pwn*2.0 ph26):f3)
+#endif /*shp_flg*/
+#endif /*N_sel*/
+
+  DELTA9 pl3:f3
+
+  2u
+  p19:gp8
+  d16
+#endif /*xy_flg*/
+
+  (center (pwh ph27):f1 (pwn ph29):f3)
+
+#ifdef xy_flg
+  TAU7 pl15:f1 pl33:f3 rpp15 rpp16
+  HN_180
+
+8 2u ipp15 ipp16
+  TAU8
+  HN_180
+  lo to 8 times 15
+
+  TAU7 pl1:f1 pl3:f3
+#else /*xy_flg*/
+  2u
+  p19:gp9
+  d16
+
+  DELTA5
+
+#ifdef N_sel
+  (center (pwh*2.0 ph26):f1 (pwn_sl:sp32 ph26):f3)
+#else /*N_sel*/
+#ifdef shp_flg
+  (center (pwh*2.0 ph26):f1 (p30:sp30 ph26):f3)
+#else /*shp_flg*/
+  (center (pwh*2.0 ph26):f1 (pwn*2.0 ph26):f3)
+#endif /*shp_flg*/
+#endif /*N_sel*/
+
+  DELTA5 pl3:f3
+
+  2u
+  p19:gp9
+  d16
+#endif /*xy_flg*/
+
+  "DELTA = (pwn-pwh)*0.5"
+  DELTA
+
+  (pwh ph26):f1
+#endif /*cp_flg*/
+
+  "DELTA = 2u + p19 + d16 + 4u + 4u + de - pwh*2.0/PI"
+  DELTA
+
+  (pwh*2.0 ph26):f1
+
+  2u
+  p19:gp10*EA
+  d16
+
+  4u BLKGRAD
+  4u pl16:f3
+
+/********************************************/
+/*   Test how much water left               */
+/*   set zgoptn -Dwater and                 */
+/*   use small value of rg                  */
+/*   set <10 deg flip angle for tap pulse   */
+/********************************************/
+#ifdef water
+  if "nsdone == 0" {
+    DELTA11
+
+    50u UNBLKGRAD
+
+    2u
+    p16:gp1
+    d16
+
+    4u BLKGRAD
+
+    10u fq=0(sfo hz):f1
+    DELTA12
+
+    (pwh_tap ph26):f1
+  }
+#endif /*water*/
+
+/***************************************/
+/*   Signal detection and looping      */
+/***************************************/
+  go=2 ph31 cpds3:f3
+  d11 do:f3 mc #0 to 2
+    F2QF(calclc(l2, 1))
+    F1EA(calgrad(EA) & calph(ph4, +180), caldel(d0, +in0) & calph(ph3, +180) & calph(ph31, +180))
+
+HaltAcqu, 1m
+exit
+
+ph2=1 3 3 1
+ph3={1 1 1 1 3 3 3 3}^2
+ph4=0
+ph5=0 2 2 0 2 0 0 2
+ph6=1 3 3 1 3 1 1 3
+ph11=0 0 1 3
+ph12=1 3 2 2
+ph13=1 1 2 0
+ph14=2 0 3 3
+ph15=3 0 3 0 0 3 0 3 1 2 1 2 2 1 2 1
+ph16=0 1 0 1 1 0 1 0 2 3 2 3 3 2 3 2
+ph21=1 3 3 1
+ph22=3 1 1 3
+ph26=0
+ph27=1
+ph28=2
+ph29=3
+ph31={0 2 2 0 2 0 0 2}^2
+
+;d1: relaxation delay; 1-5 * T1
+;d9: cutoff delay for tau_cp, above which 13C AFPs are applied. Suggest ~5 ms
+;d11: delay for disk I/O                             [30 msec]
+;d12: delay for power switching                      [4 usec]
+;d13: very short delay for power switching           [0.2 usec or as short as possible]
+;d16: delay for homospoil/gradient recovery          [200 usec]
+;d20: time_T2 CPMG relaxation period, ~20-40 ms
+;d22: time_eq, typically ~2-5 ms
+;d25: taua = 0.9/(4J(NH)), ~2.40 ms for J(NH) = 93 Hz
+;d26: taub = 1/(4J(NH)), ~2.68 ms for J(NH) = 93 Hz
+;d61: delay time prior to tap reading pulse
+;tau_hetcp: dipsi2 het-cp transfer duration (28.775*p18*l6 = ~10.8 ms (= 1/J(NH)))
+;pl1: tpwr - power level for 1H pulse pwh (p1)
+;pl2: dhpwr - power level for 13C pulse pwc (p3)
+;pl3: dhpwr2 - power level for 15N pulse pwn (p21)
+;pl9: tsatpwr - power level for water presaturation
+;pl11: tpwrmess - power level for Messerle purge, ~1 Watt
+;pl15: power level for 1H CPMG pulses for XY-16 CPMG-INEPT
+;pl16: dpwr2 - power level for 15N decoupling cpd3
+;pl19: power level for 1H waltz decoupling during t1
+;pl33: dpwr2cp - power level for 15N pulse pwn_cp, typically ~1-2 dB weaker than pl3
+;pl35: power level for calibrating 15N pulse width under load
+;sp11: f1 channel - power level for water selective pulse pw_sl (away from z-axis)
+;sp13: power level for pwc_ad
+;sp32: power level for pwn_sl
+;spnam11: shape for pw_sl (away from z-axis)
+;spnam13: shape for pwc_ad
+;spnam28: shape for 15N broadband refocusing pulse applied alone
+;spnam29: shape for 15N broadband refocusing pulse during INEPT
+;spnam30: shape for 15N broadband inversion pulse during INEPT
+;spnam32: Reburp.1000
+;spnam36: shape for 15N CPMG pulses
+;p1: f1 channel - 90 degree high power pulse (pwh)
+;p8: pwc_ad - 13C adiabatic pulse
+;p11: f1 channel - 90 degree shaped pulse for pw_sl, ~1500 us
+;p15: f1 channel - 90 degree pulse at pl15 for XY-16 CPMG-INEPT (pwh_cp)
+;p16: homospoil/gradient pulse                       [1 msec]
+;p17: pwh_cpd_t1 - 90 degree pulse for 1H cpd-decoupling during t1, ~80 us
+;p18: pw_dip - 90 degree pulse at pl18/pl36 for dipsi-2 het-cp, ~62.5 us
+;p19: gradient pulse 2                               [500 usec]
+;p21: f3 channel - 90 degree high power pulse (pwn)
+;p28: pulse width for 15N broadband refocusing pulse applied alone
+;p29: pulse width for 15N broadband refocusing pulse during INEPT
+;p30: pulse width for 15N broadband inversion pulse during INEPT
+;p32: pwn_sl - 15N Reburp pulse for removing Arg
+;p33: f3 channel - 90 degree pulse at pl33 for CPMG pulses (pwn_cp)
+;p35: f3 channel - 90 degree pulse for calibration under load
+;p36: pulse duration of CPMG shaped pulse with maximum B1 of 10kHz
+;cpdprg3: 15N decoupling sequence applied during acquisition
+;cpdprg5: 1H decoupling sequence applied during t1 [waltz16.p17]
+;pcpd3: f3 channel - 90 degree pulse for 15N decoupling sequence
+;cnst1: center of amide 1H region (offset, in ppm)
+;cnst6: fraction of time magnetization on transverse plane during CPMG pulse
+;cnst29: fraction of J-coupling active time during sp29
+;cnst30: fraction of J-coupling active time during sp30
+;cnst61: flip angle of tap reading pulse for testing water preservation (in degree)
+;l6: number of dipsi-2 cycles for het-cp
+;l8: maximum allowed ncyc_max
+;vclist: variable counter list for ncyc_cp
+;inf1: 1/SW(X) = 2*DW(X)
+;in0: 1/(2*SW(x))=DW(X)
+;nd0: 2
+;ns: 2*n (4*n is more recommended)
+;FnMODE: Echo-Antiecho in F1
+;FnMODE: QF in F2
+
+;use gradient ratio:    gp 7 : gp 10
+;                         40 :  8.1
+
+;for z-only gradients:
+;gpz0: 0.25%
+;gpz1: 15%
+;gpz2: 25%
+;gpz4: 50%
+;gpz5: 70%
+;gpz6: -90%
+;gpz7: 40%
+;gpz8: 60%
+;gpz9: 15%
+;gpz10: 8.1%
+
+;for xyz-gradientsystem use instead:
+;gpx6: 0%
+;gpy6: -90%
+;gpz6: -90%
+
+;gpx7: 40%
+;gpy7: 0%
+;gpz7: 0%
+
+;gpx10: 8.1%
+;gpy10: 0%
+;gpz10: 0%
+
+;use gradient files:
+;gpnam1: SMSQ10.100
+;gpnam2: SMSQ10.100
+;gpnam4: SMSQ10.100
+;gpnam5: SMSQ10.100
+;gpnam6: SMSQ10.100
+;gpnam7: SMSQ10.100
+;gpnam8: SMSQ10.100
+;gpnam9: SMSQ10.100
+;gpnam10: SMSQ10.100
+
+;zgoptns: Dc_flg, Dfsat, Df1180, Dmess_flg, DN_comp, DN_sel, DN_calib, Dip_flg, Dcp_flg, Dxy_flg, Dwater, Dshp_flg, Dc_dec, Dcalc_PL
